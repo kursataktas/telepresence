@@ -32,6 +32,7 @@ import (
 	"github.com/telepresenceio/telepresence/v2/pkg/tracing"
 	"github.com/telepresenceio/telepresence/v2/pkg/tunnel"
 	"github.com/telepresenceio/telepresence/v2/pkg/version"
+	"github.com/telepresenceio/telepresence/v2/pkg/workload"
 )
 
 // Clock is the mechanism used by the Manager state to get the current time.
@@ -583,9 +584,19 @@ func (s *service) GetKnownWorkloadKinds(ctx context.Context, request *rpc.Sessio
 	}
 	ctx = managerutil.WithSessionInfo(ctx, request)
 	dlog.Debugf(ctx, "GetKnownWorkloadKinds called")
-	kinds := []rpc.WorkloadInfo_Kind{rpc.WorkloadInfo_DEPLOYMENT, rpc.WorkloadInfo_REPLICASET, rpc.WorkloadInfo_STATEFULSET}
-	if managerutil.ArgoRolloutsEnabled(ctx) {
-		kinds = append(kinds, rpc.WorkloadInfo_ROLLOUT)
+	enabledWorkloadKinds := managerutil.GetEnv(ctx).EnabledWorkloadKinds
+	kinds := make([]rpc.WorkloadInfo_Kind, len(enabledWorkloadKinds))
+	for i, wlKind := range enabledWorkloadKinds {
+		switch wlKind {
+		case workload.DeploymentWorkloadKind:
+			kinds[i] = rpc.WorkloadInfo_DEPLOYMENT
+		case workload.ReplicaSetWorkloadKind:
+			kinds[i] = rpc.WorkloadInfo_REPLICASET
+		case workload.StatefulSetWorkloadKind:
+			kinds[i] = rpc.WorkloadInfo_STATEFULSET
+		case workload.RolloutWorkloadKind:
+			kinds[i] = rpc.WorkloadInfo_ROLLOUT
+		}
 	}
 	return &rpc.KnownWorkloadKinds{Kinds: kinds}, nil
 }

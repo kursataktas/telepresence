@@ -30,6 +30,12 @@ See [Streaming Transitions from SPDY to WebSockets](https://kubernetes.io/blog/2
 The OSS code-base will no longer report usage data to the proprietary collector at Ambassador Labs. The actual calls to the collector remain, but will be no-ops unless a proper collector client is installed using an extension point.
 </div>
 
+## <div style="display:flex;"><img src="images/feature.png" alt="feature" style="width:30px;height:fit-content;"/><div style="display:flex;margin-left:7px;">Add deployments, statefulSets, replicaSets to workloads Helm chart value</div></div>
+<div style="margin-left: 15px">
+
+The Helm chart value <code>workloads</code> now supports the kinds <code>deployments.enabled</code>, <code>statefulSets.enabled</code>, and <code>replicaSets.enabled</code>. By default, all three are enabled, but can be disabled by setting the corresponding value to <code>false</code>. When disabled, the traffic-manager will ignore workloads of a corresponding kind, and Telepresence will not be able to intercept them.
+</div>
+
 ## Version 2.20.2 <span style="font-size: 16px;">(October 21)</span>
 ## <div style="display:flex;"><img src="images/bugfix.png" alt="bugfix" style="width:30px;height:fit-content;"/><div style="display:flex;margin-left:7px;">Crash in traffic-manager configured with agentInjector.enabled=false</div></div>
 <div style="margin-left: 15px">

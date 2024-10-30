@@ -1111,22 +1111,32 @@ func (s *session) localWorkloadsWatcher(ctx context.Context, namespace string, s
 		ctx = informer.WithFactory(ctx, namespace)
 		fc = informer.GetFactory(ctx, namespace)
 	}
-	workload.StartDeployments(ctx, namespace)
-	workload.StartReplicaSets(ctx, namespace)
-	workload.StartStatefulSets(ctx, namespace)
+
+	enabledWorkloadKinds := make([]workload.WorkloadKind, len(knownWorkloadKinds.Kinds))
+	for i, kind := range knownWorkloadKinds.Kinds {
+		switch kind {
+		case manager.WorkloadInfo_DEPLOYMENT:
+			workload.StartDeployments(ctx, namespace)
+			enabledWorkloadKinds[i] = workload.DeploymentWorkloadKind
+		case manager.WorkloadInfo_REPLICASET:
+			enabledWorkloadKinds[i] = workload.ReplicaSetWorkloadKind
+			workload.StartReplicaSets(ctx, namespace)
+		case manager.WorkloadInfo_STATEFULSET:
+			enabledWorkloadKinds[i] = workload.StatefulSetWorkloadKind
+			workload.StartStatefulSets(ctx, namespace)
+		case manager.WorkloadInfo_ROLLOUT:
+			enabledWorkloadKinds[i] = workload.RolloutWorkloadKind
+			workload.StartRollouts(ctx, namespace)
+			af := fc.GetArgoRolloutsInformerFactory()
+			af.Start(ctx.Done())
+		}
+	}
+
 	kf := fc.GetK8sInformerFactory()
 	kf.Start(ctx.Done())
 
-	rolloutsEnabled := slices.Index(knownWorkloadKinds.Kinds, manager.WorkloadInfo_ROLLOUT) >= 0
-	if rolloutsEnabled {
-		workload.StartRollouts(ctx, namespace)
-		af := fc.GetArgoRolloutsInformerFactory()
-		af.Start(ctx.Done())
-	}
-
-	ww, err := workload.NewWatcher(ctx, namespace, rolloutsEnabled)
+	ww, err := workload.NewWatcher(ctx, namespace, enabledWorkloadKinds)
 	if err != nil {
-		workload.StartRollouts(ctx, namespace)
 		return err
 	}
 	kf.WaitForCacheSync(ctx.Done())

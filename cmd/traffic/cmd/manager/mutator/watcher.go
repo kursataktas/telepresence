@@ -560,19 +560,25 @@ func (c *configWatcher) StartWatchers(ctx context.Context) error {
 			return err
 		}
 	}
-	for _, si := range c.dps {
-		if err := c.watchWorkloads(ctx, si); err != nil {
-			return err
+	if c.dps != nil {
+		for _, si := range c.dps {
+			if err := c.watchWorkloads(ctx, si); err != nil {
+				return err
+			}
 		}
 	}
-	for _, si := range c.rss {
-		if err := c.watchWorkloads(ctx, si); err != nil {
-			return err
+	if c.rss != nil {
+		for _, si := range c.rss {
+			if err := c.watchWorkloads(ctx, si); err != nil {
+				return err
+			}
 		}
 	}
-	for _, si := range c.sss {
-		if err := c.watchWorkloads(ctx, si); err != nil {
-			return err
+	if c.sss != nil {
+		for _, si := range c.sss {
+			if err := c.watchWorkloads(ctx, si); err != nil {
+				return err
+			}
 		}
 	}
 	if c.rls != nil {
@@ -834,22 +840,36 @@ func (c *configWatcher) Start(ctx context.Context) {
 
 	c.svs = make([]cache.SharedIndexInformer, len(nss))
 	c.cms = make([]cache.SharedIndexInformer, len(nss))
-	c.dps = make([]cache.SharedIndexInformer, len(nss))
-	c.rss = make([]cache.SharedIndexInformer, len(nss))
-	c.sss = make([]cache.SharedIndexInformer, len(nss))
+	for _, wlKind := range env.EnabledWorkloadKinds {
+		switch wlKind {
+		case workload.DeploymentWorkloadKind:
+			c.dps = make([]cache.SharedIndexInformer, len(nss))
+		case workload.ReplicaSetWorkloadKind:
+			c.rss = make([]cache.SharedIndexInformer, len(nss))
+		case workload.StatefulSetWorkloadKind:
+			c.sss = make([]cache.SharedIndexInformer, len(nss))
+		case workload.RolloutWorkloadKind:
+			c.rls = make([]cache.SharedIndexInformer, len(nss))
+		}
+	}
 	for i, ns := range nss {
 		c.cms[i] = c.startConfigMap(ctx, ns)
 		c.svs[i] = c.startServices(ctx, ns)
-		c.dps[i] = workload.StartDeployments(ctx, ns)
-		c.rss[i] = workload.StartReplicaSets(ctx, ns)
-		c.sss[i] = workload.StartStatefulSets(ctx, ns)
+		if c.dps != nil {
+			c.dps[i] = workload.StartDeployments(ctx, ns)
+		}
+		if c.rss != nil {
+			c.rss[i] = workload.StartReplicaSets(ctx, ns)
+		}
+		if c.sss != nil {
+			c.sss[i] = workload.StartStatefulSets(ctx, ns)
+		}
 		c.startPods(ctx, ns)
 		kf := informer.GetK8sFactory(ctx, ns)
 		kf.Start(ctx.Done())
 		kf.WaitForCacheSync(ctx.Done())
 	}
-	if managerutil.ArgoRolloutsEnabled(ctx) {
-		c.rls = make([]cache.SharedIndexInformer, len(nss))
+	if c.rls != nil {
 		for i, ns := range nss {
 			c.rls[i] = workload.StartRollouts(ctx, ns)
 			rf := informer.GetArgoRolloutsFactory(ctx, ns)

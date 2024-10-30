@@ -129,6 +129,8 @@ func NewInfo(ctx context.Context) Info {
 		}
 	}
 
+	dlog.Infof(ctx, "Enabled support for the following workload kinds: %v", env.EnabledWorkloadKinds)
+
 	// make an attempt to create a service with ClusterIP that is out of range and then
 	// check the error message for the correct range as suggested tin the second answer here:
 	//   https://stackoverflow.com/questions/44190607/how-do-you-find-the-cluster-service-cidr-of-a-kubernetes-cluster

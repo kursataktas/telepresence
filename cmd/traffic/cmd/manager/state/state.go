@@ -495,7 +495,7 @@ func (s *state) WatchWorkloads(ctx context.Context, sessionID string) (ch <-chan
 	}
 	ns := client.Namespace
 	ww, _ := s.workloadWatchers.LoadOrCompute(ns, func() (ww workload.Watcher) {
-		ww, err = workload.NewWatcher(s.backgroundCtx, ns, managerutil.ArgoRolloutsEnabled(ctx))
+		ww, err = workload.NewWatcher(s.backgroundCtx, ns, managerutil.GetEnv(ctx).EnabledWorkloadKinds)
 		return ww
 	})
 	if err != nil {

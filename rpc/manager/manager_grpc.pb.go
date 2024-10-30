@@ -142,8 +142,8 @@ type ManagerClient interface {
 	// error, and setting a human-readable status message.
 	ReviewIntercept(ctx context.Context, in *ReviewInterceptRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetKnownWorkloadKinds returns the known workload kinds
-	// that the manager can handle. This base set should always include Deployment, StatefulSet, and ReplicaSet,
-	// and it may include Rollout (Argo Rollouts) if the support for it is enabled.
+	// that the manager can handle. This set may include Deployment, StatefulSet, ReplicaSet, Rollout (Argo Rollouts)
+	// as configured in the manager's Helm values.
 	GetKnownWorkloadKinds(ctx context.Context, in *SessionInfo, opts ...grpc.CallOption) (*KnownWorkloadKinds, error)
 	// LookupDNS performs a DNS lookup in the cluster. If the caller has intercepts
 	// active, the lookup will be performed from the intercepted pods.
@@ -834,8 +834,8 @@ type ManagerServer interface {
 	// error, and setting a human-readable status message.
 	ReviewIntercept(context.Context, *ReviewInterceptRequest) (*emptypb.Empty, error)
 	// GetKnownWorkloadKinds returns the known workload kinds
-	// that the manager can handle. This base set should always include Deployment, StatefulSet, and ReplicaSet,
-	// and it may include Rollout (Argo Rollouts) if the support for it is enabled.
+	// that the manager can handle. This set may include Deployment, StatefulSet, ReplicaSet, Rollout (Argo Rollouts)
+	// as configured in the manager's Helm values.
 	GetKnownWorkloadKinds(context.Context, *SessionInfo) (*KnownWorkloadKinds, error)
 	// LookupDNS performs a DNS lookup in the cluster. If the caller has intercepts
 	// active, the lookup will be performed from the intercepted pods.

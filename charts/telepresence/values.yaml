@@ -347,6 +347,12 @@ client:
 
 # Controls which workload kinds are recognized by Telepresence
 workloads:
+  deployments:
+    enabled: true
+  replicaSets:
+    enabled: true
+  statefulSets:
+    enabled: true
   argoRollouts:
     enabled: false
 

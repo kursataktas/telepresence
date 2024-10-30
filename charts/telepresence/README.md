@@ -102,6 +102,9 @@ The following tables lists the configurable parameters of the Telepresence chart
 | client.routing.allowConflictingSubnets               | Allow the specified subnets to be routed even if they conflict with other routes on the local machine.                      | `[]`                                                                        |
 | client.dns.excludeSuffixes                           | Suffixes for which the client DNS resolver will always fail (or fallback in case of the overriding resolver)                | `[".com", ".io", ".net", ".org", ".ru"]`                                    |
 | client.dns.includeSuffixes                           | Suffixes for which the client DNS resolver will always attempt to do a lookup. Includes have higher priority than excludes. | `[]`                                                                        |
+| workloads.deployments.enabled                        | Enable/Disable the support for Deployments.                                                                                 | `true`                                                                      |
+| workloads.replicaSets.enabled                        | Enable/Disable the support for ReplicaSets.                                                                                 | `true`                                                                      |
+| workloads.statefulSets.enabled                       | Enable/Disable the support for StatefulSets.                                                                                | `true`                                                                      |
 | workloads.argoRollouts.enabled                       | Enable/Disable the argo-rollouts integration.                                                                               | `false`                                                                     |
 
 ### RBAC

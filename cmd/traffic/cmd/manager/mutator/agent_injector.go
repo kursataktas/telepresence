@@ -28,6 +28,7 @@ import (
 	"github.com/telepresenceio/telepresence/v2/pkg/agentmap"
 	"github.com/telepresenceio/telepresence/v2/pkg/maps"
 	"github.com/telepresenceio/telepresence/v2/pkg/tracing"
+	"github.com/telepresenceio/telepresence/v2/pkg/workload"
 )
 
 var podResource = meta.GroupVersionResource{Version: "v1", Group: "", Resource: "pods"} //nolint:gochecknoglobals // constant
@@ -145,9 +146,19 @@ func (a *agentInjector) Inject(ctx context.Context, req *admission.AdmissionRequ
 			return nil, nil
 		}
 
-		supportedKinds := []string{"Deployment", "ReplicaSet", "StatefulSet"}
-		if managerutil.ArgoRolloutsEnabled(ctx) {
-			supportedKinds = append(supportedKinds, "Rollout")
+		enabledWorkloads := managerutil.GetEnv(ctx).EnabledWorkloadKinds
+		supportedKinds := make([]string, len(enabledWorkloads))
+		for i, wlKind := range enabledWorkloads {
+			switch wlKind {
+			case workload.DeploymentWorkloadKind:
+				supportedKinds[i] = "Deployment"
+			case workload.ReplicaSetWorkloadKind:
+				supportedKinds[i] = "ReplicaSet"
+			case workload.StatefulSetWorkloadKind:
+				supportedKinds[i] = "StatefulSet"
+			case workload.RolloutWorkloadKind:
+				supportedKinds[i] = "Rollout"
+			}
 		}
 		wl, err := agentmap.FindOwnerWorkload(ctx, k8sapi.Pod(pod), supportedKinds)
 		if err != nil {

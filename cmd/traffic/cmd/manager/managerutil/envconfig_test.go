@@ -13,6 +13,7 @@ import (
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/telepresenceio/telepresence/v2/cmd/traffic/cmd/manager/managerutil"
 	"github.com/telepresenceio/telepresence/v2/pkg/agentconfig"
+	"github.com/telepresenceio/telepresence/v2/pkg/workload"
 )
 
 func TestEnvconfig(t *testing.T) {
@@ -53,6 +54,7 @@ func TestEnvconfig(t *testing.T) {
 		PodCIDRStrategy:          "auto",
 		PodIP:                    netip.AddrFrom4([4]byte{203, 0, 113, 18}),
 		ServerPort:               8081,
+		EnabledWorkloadKinds:     []workload.WorkloadKind{workload.DeploymentWorkloadKind, workload.StatefulSetWorkloadKind, workload.ReplicaSetWorkloadKind},
 	}
 
 	testcases := map[string]struct {
@@ -65,12 +67,10 @@ func TestEnvconfig(t *testing.T) {
 		},
 		"simple": {
 			Input: map[string]string{
-				"AGENT_REGISTRY":        "ghcr.io/telepresenceio",
-				"ARGO_ROLLOUTS_ENABLED": "true",
+				"AGENT_REGISTRY": "ghcr.io/telepresenceio",
 			},
 			Output: func(e *managerutil.Env) {
 				e.AgentRegistry = "ghcr.io/telepresenceio"
-				e.ArgoRolloutsEnabled = true
 			},
 		},
 		"complex": {

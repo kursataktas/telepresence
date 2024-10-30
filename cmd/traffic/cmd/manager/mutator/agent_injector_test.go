@@ -31,6 +31,7 @@ import (
 	"github.com/telepresenceio/telepresence/v2/pkg/agentconfig"
 	"github.com/telepresenceio/telepresence/v2/pkg/agentmap"
 	"github.com/telepresenceio/telepresence/v2/pkg/informer"
+	"github.com/telepresenceio/telepresence/v2/pkg/workload"
 )
 
 const serviceAccountMountPath = "/var/run/secrets/kubernetes.io/serviceaccount"
@@ -770,6 +771,8 @@ func TestTrafficAgentConfigGenerator(t *testing.T) {
 			AgentImageTag:            "2.14.0",
 			AgentPort:                9900,
 			AgentAppProtocolStrategy: appProtoStrategy,
+
+			EnabledWorkloadKinds: []workload.WorkloadKind{workload.DeploymentWorkloadKind, workload.StatefulSetWorkloadKind, workload.ReplicaSetWorkloadKind},
 		}
 
 		ctx := dlog.NewTestContext(t, false)
@@ -1830,6 +1833,8 @@ func TestTrafficAgentInjector(t *testing.T) {
 				AgentImageTag:     "2.13.3",
 				AgentPort:         9900,
 				AgentInjectPolicy: agentconfig.WhenEnabled,
+
+				EnabledWorkloadKinds: []workload.WorkloadKind{workload.DeploymentWorkloadKind, workload.StatefulSetWorkloadKind, workload.ReplicaSetWorkloadKind},
 			}
 			ctx = managerutil.WithEnv(ctx, env)
 			agentmap.GeneratorConfigFunc = env.GeneratorConfig
@@ -1907,9 +1912,18 @@ func toAdmissionRequest(resource meta.GroupVersionResource, object any) *admissi
 }
 
 func generateForPod(t *testing.T, ctx context.Context, pod *core.Pod, gc agentmap.GeneratorConfig) (agentconfig.SidecarExt, error) {
-	supportedKinds := []string{"Deployment", "ReplicaSet", "StatefulSet"}
-	if managerutil.ArgoRolloutsEnabled(ctx) {
-		supportedKinds = append(supportedKinds, "Rollout")
+	supportedKinds := make([]string, 0, 4)
+	for _, wlKind := range managerutil.GetEnv(ctx).EnabledWorkloadKinds {
+		switch wlKind {
+		case workload.DeploymentWorkloadKind:
+			supportedKinds = append(supportedKinds, "Deployment")
+		case workload.ReplicaSetWorkloadKind:
+			supportedKinds = append(supportedKinds, "ReplicaSet")
+		case workload.StatefulSetWorkloadKind:
+			supportedKinds = append(supportedKinds, "StatefulSet")
+		case workload.RolloutWorkloadKind:
+			supportedKinds = append(supportedKinds, "Rollout")
+		}
 	}
 	wl, err := agentmap.FindOwnerWorkload(ctx, k8sapi.Pod(pod), supportedKinds)
 	if err != nil {
