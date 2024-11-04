@@ -147,7 +147,7 @@ func (p *mgrProxy) Tunnel(fhClient connector.ManagerProxy_TunnelServer) error {
 	return nil
 }
 
-func (p *mgrProxy) EnsureAgent(ctx context.Context, arg *manager.EnsureAgentRequest) (*emptypb.Empty, error) {
+func (p *mgrProxy) EnsureAgent(ctx context.Context, arg *manager.EnsureAgentRequest) (*manager.AgentInfo, error) {
 	client, callOptions, err := p.get()
 	if err != nil {
 		return nil, err

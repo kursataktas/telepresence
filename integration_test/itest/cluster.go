@@ -357,6 +357,7 @@ func (s *cluster) withBasicConfig(c context.Context, t *testing.T) context.Conte
 	to.PrivateRoundtripLatency = 5 * time.Second
 	to.PrivateTrafficManagerAPI = 120 * time.Second
 	to.PrivateTrafficManagerConnect = 180 * time.Second
+	to.PrivateConnectivityCheck = 0
 
 	images := config.Images()
 	images.PrivateRegistry = s.self.Registry()

@@ -31,6 +31,8 @@ message AgentInfo {
   string pod_name = 8;  // Pod name (from metadata.name)
   string pod_ip = 2;    // Pod IP (from status.podIP)
   int32 api_port = 9;   // Port number for the agent gRPC API
+  int32 sftp_port = 10; // Port number for the agent SFTP server
+  int32 ftp_port = 11;  // Port number for the agent FTP server
   string product = 3;   // distinguish open source, our closed source, someone else's thing
   string version = 4;
 
@@ -55,11 +57,16 @@ message AgentInfo {
   // it supports.
   repeated Mechanism mechanisms = 5;
 
-  // The environment of the app
-  // Deprecated: Only older agents will set this. Newer ones will instead
-  // use the InterceptInfo.environment because the environment differs depending
-  // on what container it is that gets intercepted
-  map<string, string> environment = 6;
+  message ContainerInfo {
+    // The container environment
+    map<string, string> environment = 1;
+
+    // The directory where the intercept mounts can be found in the agent
+    string mount_point = 4;
+  }
+  map<string,ContainerInfo> containers = 12;
+
+  reserved 6;
 }
 
 // InterceptSpec contains static information about an intercept. It is shared by
@@ -146,7 +153,7 @@ message InterceptSpec {
 
   // Used to be mount_point and only utilized when passing the spec between
   // the user daemon and the CLI. It's now moved to InterceptInfo
-  string reserved = 11;
+  reserved 11;
 
   // Whether to replace the running container.
   bool replace = 22;
@@ -752,7 +759,7 @@ service Manager {
   rpc WatchClusterInfo(SessionInfo) returns (stream ClusterInfo);
 
   // EnsureAgent ensures that an agent is injected to the pods of a workload
-  rpc EnsureAgent(EnsureAgentRequest) returns (google.protobuf.Empty);
+  rpc EnsureAgent(EnsureAgentRequest) returns (AgentInfo);
 
   // Request that the traffic-manager makes the preparations necessary to
   // create the given intercept.

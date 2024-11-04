@@ -25,6 +25,10 @@ type userdToManagerShortcut struct {
 	manager.ManagerClient
 }
 
+func (m *userdToManagerShortcut) EnsureAgent(ctx context.Context, in *manager.EnsureAgentRequest, opts ...grpc.CallOption) (*manager.AgentInfo, error) {
+	return m.ManagerClient.EnsureAgent(ctx, in, opts...)
+}
+
 func (m *userdToManagerShortcut) WatchClusterInfo(ctx context.Context, in *manager.SessionInfo, opts ...grpc.CallOption) (connector.ManagerProxy_WatchClusterInfoClient, error) {
 	return m.ManagerClient.WatchClusterInfo(ctx, in, opts...)
 }
@@ -108,7 +112,7 @@ func (rd *InProcSession) WaitForNetwork(ctx context.Context, _ *empty.Empty, _ .
 	return &empty.Empty{}, nil
 }
 
-func (rd *InProcSession) WaitForAgentIP(ctx context.Context, request *rpc.WaitForAgentIPRequest, _ ...grpc.CallOption) (*empty.Empty, error) {
+func (rd *InProcSession) WaitForAgentIP(ctx context.Context, request *rpc.WaitForAgentIPRequest, _ ...grpc.CallOption) (*rpc.WaitForAgentIPResponse, error) {
 	return rd.waitForAgentIP(ctx, request)
 }
 

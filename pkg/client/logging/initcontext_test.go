@@ -87,7 +87,7 @@ func TestInitContext(t *testing.T) {
 		ctx, _, logFile := testSetup(t)
 		check := require.New(t)
 
-		c, err := InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err := InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -115,7 +115,7 @@ func TestInitContext(t *testing.T) {
 		ctx, _, logFile := testSetup(t)
 		check := require.New(t)
 
-		c, err := InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err := InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -134,7 +134,7 @@ func TestInitContext(t *testing.T) {
 		ctx, _, logFile := testSetup(t)
 		check := require.New(t)
 
-		c, err := InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err := InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -154,7 +154,7 @@ func TestInitContext(t *testing.T) {
 		ctx, logDir, logFile := testSetup(t)
 		check := require.New(t)
 
-		c, err := InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err := InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -163,7 +163,7 @@ func TestInitContext(t *testing.T) {
 		closeLog(t)
 		ft.Step(time.Second)
 
-		c, err = InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err = InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -184,7 +184,7 @@ func TestInitContext(t *testing.T) {
 		ctx, _, _ := testSetup(t)
 		check := require.New(t)
 
-		c, err := InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err := InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -192,7 +192,7 @@ func TestInitContext(t *testing.T) {
 		bt1 := loggerForTest.Out.(*RotatingFile).birthTime
 		closeLog(t)
 
-		c, err = InitContext(ctx, logName, NewRotateOnce(), true)
+		c, err = InitContext(ctx, logName, NewRotateOnce(), true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -206,7 +206,7 @@ func TestInitContext(t *testing.T) {
 		ctx, _, logFile := testSetup(t)
 		check := require.New(t)
 
-		c, err := InitContext(ctx, logName, RotateNever, true)
+		c, err := InitContext(ctx, logName, RotateNever, true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -214,7 +214,7 @@ func TestInitContext(t *testing.T) {
 		dlog.Info(c, infoMsg1)
 		closeLog(t)
 
-		c, err = InitContext(ctx, logName, RotateNever, true)
+		c, err = InitContext(ctx, logName, RotateNever, true, false)
 		loggerForTest.AddHook(&dtimeHook{})
 		check.NoError(err)
 		check.NotNil(c)
@@ -241,7 +241,7 @@ func TestInitContext(t *testing.T) {
 		}
 		for i := 0; i < maxFiles+2; i++ {
 			ft.Step(24 * time.Hour)
-			c, err := InitContext(ctx, logName, NewRotateOnce(), true)
+			c, err := InitContext(ctx, logName, NewRotateOnce(), true, false)
 			loggerForTest.AddHook(&dtimeHook{})
 			check.NoError(err)
 			check.NotNil(c)

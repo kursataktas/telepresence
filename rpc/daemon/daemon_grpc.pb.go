@@ -66,7 +66,7 @@ type DaemonClient interface {
 	// WaitForNetwork waits for the network of the currently connected session to become ready.
 	WaitForNetwork(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// WaitForAgentIP waits for the network of an intercepted agent to become ready.
-	WaitForAgentIP(ctx context.Context, in *WaitForAgentIPRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	WaitForAgentIP(ctx context.Context, in *WaitForAgentIPRequest, opts ...grpc.CallOption) (*WaitForAgentIPResponse, error)
 }
 
 type daemonClient struct {
@@ -187,9 +187,9 @@ func (c *daemonClient) WaitForNetwork(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
-func (c *daemonClient) WaitForAgentIP(ctx context.Context, in *WaitForAgentIPRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *daemonClient) WaitForAgentIP(ctx context.Context, in *WaitForAgentIPRequest, opts ...grpc.CallOption) (*WaitForAgentIPResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(WaitForAgentIPResponse)
 	err := c.cc.Invoke(ctx, Daemon_WaitForAgentIP_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ type DaemonServer interface {
 	// WaitForNetwork waits for the network of the currently connected session to become ready.
 	WaitForNetwork(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// WaitForAgentIP waits for the network of an intercepted agent to become ready.
-	WaitForAgentIP(context.Context, *WaitForAgentIPRequest) (*emptypb.Empty, error)
+	WaitForAgentIP(context.Context, *WaitForAgentIPRequest) (*WaitForAgentIPResponse, error)
 	mustEmbedUnimplementedDaemonServer()
 }
 
@@ -268,7 +268,7 @@ func (UnimplementedDaemonServer) SetLogLevel(context.Context, *manager.LogLevelR
 func (UnimplementedDaemonServer) WaitForNetwork(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitForNetwork not implemented")
 }
-func (UnimplementedDaemonServer) WaitForAgentIP(context.Context, *WaitForAgentIPRequest) (*emptypb.Empty, error) {
+func (UnimplementedDaemonServer) WaitForAgentIP(context.Context, *WaitForAgentIPRequest) (*WaitForAgentIPResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitForAgentIP not implemented")
 }
 func (UnimplementedDaemonServer) mustEmbedUnimplementedDaemonServer() {}

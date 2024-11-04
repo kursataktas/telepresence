@@ -53,8 +53,8 @@ func launchDaemon(ctx context.Context, cr *daemon.Request) error {
 	return proc.StartInBackgroundAsRoot(ctx, args...)
 }
 
-// ensureRootDaemonRunning ensures that the daemon is running.
-func ensureRootDaemonRunning(ctx context.Context) error {
+// EnsureRootDaemonRunning ensures that the daemon is running.
+func EnsureRootDaemonRunning(ctx context.Context) error {
 	cr := daemon.GetRequest(ctx)
 	if cr != nil && cr.Docker {
 		// Never start root daemon when connecting using a docker container.

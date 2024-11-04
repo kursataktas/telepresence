@@ -611,6 +611,22 @@ func (s *service) SetDNSMappings(ctx context.Context, req *daemon.SetDNSMappings
 	return &empty.Empty{}, err
 }
 
+func (s *service) Ingest(ctx context.Context, request *rpc.IngestRequest) (response *rpc.IngestResponse, err error) {
+	err = s.WithSession(ctx, "Ingest", func(ctx context.Context, session userd.Session) error {
+		response, err = session.Ingest(ctx, request)
+		return err
+	})
+	return response, err
+}
+
+func (s *service) LeaveIngest(ctx context.Context, request *rpc.IngestIdentifier) (_ *emptypb.Empty, err error) {
+	err = s.WithSession(ctx, "LeaveIngest", func(_ context.Context, session userd.Session) error {
+		err = session.LeaveIngest(request)
+		return err
+	})
+	return &emptypb.Empty{}, err
+}
+
 func (s *service) withRootDaemon(ctx context.Context, f func(ctx context.Context, daemonClient daemon.DaemonClient) error) error {
 	if s.rootSessionInProc {
 		return status.Error(codes.Unavailable, "root daemon is embedded")

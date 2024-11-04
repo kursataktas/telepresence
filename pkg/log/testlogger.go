@@ -40,6 +40,7 @@ func (w *tbWrapper) StdLogger(l dlog.LogLevel) *log.Logger {
 func (w *tbWrapper) WithField(key string, value any) dlog.Logger {
 	ret := tbWrapper{
 		TB:     w.TB,
+		level:  w.level,
 		fields: make(map[string]any, len(w.fields)+1),
 	}
 	maps.Merge(ret.fields, w.fields)

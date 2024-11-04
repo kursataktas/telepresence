@@ -14,9 +14,7 @@ import (
 
 	grpcCodes "google.golang.org/grpc/codes"
 	grpcStatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/datawire/dlib/dgroup"
 	"github.com/datawire/dlib/dlog"
 	"github.com/telepresenceio/telepresence/rpc/v2/common"
 	rpc "github.com/telepresenceio/telepresence/rpc/v2/connector"
@@ -28,8 +26,6 @@ import (
 	"github.com/telepresenceio/telepresence/v2/pkg/client/remotefs"
 	"github.com/telepresenceio/telepresence/v2/pkg/client/userd"
 	"github.com/telepresenceio/telepresence/v2/pkg/errcat"
-	"github.com/telepresenceio/telepresence/v2/pkg/forwarder"
-	"github.com/telepresenceio/telepresence/v2/pkg/iputil"
 	"github.com/telepresenceio/telepresence/v2/pkg/maps"
 	"github.com/telepresenceio/telepresence/v2/pkg/matcher"
 	"github.com/telepresenceio/telepresence/v2/pkg/proc"
@@ -92,41 +88,6 @@ type awaitIntercept struct {
 	waitCh chan<- interceptResult
 }
 
-// podInterceptKey identifies an intercepted pod. Although an intercept may span multiple
-// pods, the user daemon will always choose exactly one pod with an active intercept to
-// do port forwards and remote mounts.
-type podInterceptKey struct {
-	Id    string
-	PodIP string
-}
-
-// The podIntercept provides pod specific synchronization for cancellation of port forwards
-// and mounts. Cancellation here does not mean that the intercept is cancelled. It just
-// means that the given pod is no longer the chosen one. This typically happens when pods
-// are scaled down and then up again.
-type podIntercept struct {
-	wg        sync.WaitGroup
-	cancelPod context.CancelFunc
-}
-
-// podIntercepts is what the traffic-manager is using to keep track of the chosen pods for
-// the currently active intercepts.
-type podIntercepts struct {
-	sync.Mutex
-
-	// alive contains a map of the currently alive pod intercepts
-	alivePods map[podInterceptKey]*podIntercept
-
-	// snapshot is recreated for each new intercept snapshot read from the manager.
-	// The set controls which podIntercepts that are considered alive when cancelUnwanted
-	// is called
-	snapshot map[podInterceptKey]struct{}
-
-	// mountsDone contains channels that are closed when the mounts are prepared for the
-	// given id and podIP
-	mountsDone map[podInterceptKey]chan struct{}
-}
-
 func (ic *intercept) localPorts() []string {
 	// Older versions use ii.extraPorts (TCP only), newer versions use ii.localPorts.
 	ps := ic.Spec.LocalPorts
@@ -139,144 +100,21 @@ func (ic *intercept) localPorts() []string {
 	return ps
 }
 
-func (ic *intercept) shouldForward() bool {
-	return len(ic.localPorts()) > 0
-}
-
-// startForwards starts port forwards and mounts for the given podInterceptKey.
-// It assumes that the user has called shouldForward and is sure that something will be started.
-func (ic *intercept) startForwards(ctx context.Context, wg *sync.WaitGroup) {
-	for _, port := range ic.localPorts() {
-		var pfCtx context.Context
-		if iputil.IsIpV6Addr(ic.PodIp) {
-			pfCtx = dgroup.WithGoroutineName(ctx, fmt.Sprintf("/[%s]:%s", ic.PodIp, port))
-		} else {
-			pfCtx = dgroup.WithGoroutineName(ctx, fmt.Sprintf("/%s:%s", ic.PodIp, port))
-		}
-		wg.Add(1)
-		go ic.workerPortForward(pfCtx, port, wg)
+func (ic *intercept) podAccess(rd daemon.DaemonClient) *podAccess {
+	pa := &podAccess{
+		ctx:              ic.ctx,
+		localPorts:       ic.localPorts(),
+		podIP:            ic.PodIp,
+		container:        ic.Spec.ContainerName,
+		sftpPort:         ic.SftpPort,
+		ftpPort:          ic.FtpPort,
+		mountPoint:       ic.MountPoint,
+		clientMountPoint: ic.ClientMountPoint,
 	}
-}
-
-func (ic *intercept) workerPortForward(ctx context.Context, port string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	pp, err := agentconfig.NewPortAndProto(port)
-	if err != nil {
-		dlog.Errorf(ctx, "malformed extra port %q: %v", port, err)
-		return
+	if err := pa.ensureAccess(ic.ctx, rd); err != nil {
+		dlog.Error(ic.ctx, err)
 	}
-	addr, err := pp.Addr()
-	if err != nil {
-		dlog.Errorf(ctx, "unable to resolve extra port %q: %v", port, err)
-		return
-	}
-	f := forwarder.NewInterceptor(addr, ic.PodIp, pp.Port)
-	err = f.Serve(ctx, nil)
-	if err != nil && ctx.Err() == nil {
-		dlog.Errorf(ctx, "port-forwarder failed with %v", err)
-	}
-}
-
-func newPodIntercepts() *podIntercepts {
-	return &podIntercepts{alivePods: make(map[podInterceptKey]*podIntercept)}
-}
-
-// start a port forward for the given intercept and remembers that it's alive.
-func (lpf *podIntercepts) start(ctx context.Context, ic *intercept, rd daemon.DaemonClient) {
-	// The mounts performed here are synced on by podIP + port to keep track of active
-	// mounts. This is not enough in situations when a pod is deleted and another pod
-	// takes over. That is two different IPs so an additional synchronization on the actual
-	// mount point is necessary to prevent that it is established and deleted at the same
-	// time.
-	fk := podInterceptKey{
-		Id:    ic.Id,
-		PodIP: ic.PodIp,
-	}
-
-	defer func() {
-		if md, ok := lpf.mountsDone[fk]; ok {
-			delete(lpf.mountsDone, fk)
-			close(md)
-		}
-	}()
-
-	if !ic.shouldForward() && !ic.shouldMount() {
-		dlog.Debugf(ctx, "No mounts or port-forwards needed for %+v", fk)
-		return
-	}
-
-	// Make part of current snapshot tracking so that it isn't removed once the
-	// snapshot has been completely handled
-	lpf.snapshot[fk] = struct{}{}
-
-	// Already started?
-	if _, isLive := lpf.alivePods[fk]; isLive {
-		dlog.Debugf(ctx, "Mounts and port-forwards already active for %+v", fk)
-		return
-	}
-
-	if client.GetConfig(ctx).Cluster().AgentPortForward {
-		// An agent port-forward to the pod with a designated to the PodIP is necessary in order to
-		// mount or port-forward to localhost.
-		_, err := rd.WaitForAgentIP(ctx, &daemon.WaitForAgentIPRequest{
-			Ip:      iputil.Parse(ic.PodIp),
-			Timeout: durationpb.New(10 * time.Second),
-		})
-		switch grpcStatus.Code(err) {
-		// Unavailable means that the feature disabled. This is OK, the traffic-manager will do the forwarding
-		case grpcCodes.OK, grpcCodes.Unavailable:
-		case grpcCodes.DeadlineExceeded:
-			dlog.Errorf(ctx, "timeout waiting for port-forward to traffic-agent with pod-ip %s", ic.PodIp)
-			return
-		default:
-			dlog.Errorf(ctx, "unexpected error for port-forward to traffic-agent with pod-ip %s: %v", ic.PodIp, err)
-			return
-		}
-	}
-
-	ctx, cancel := context.WithCancel(ic.ctx)
-	lp := &podIntercept{cancelPod: cancel}
-	if ic.shouldMount() {
-		ic.startMount(ctx, &ic.wg, &lp.wg)
-	}
-	if ic.shouldForward() {
-		ic.startForwards(ctx, &lp.wg)
-	}
-	dlog.Debugf(ctx, "Started mounts and port-forwards for %+v", fk)
-	lpf.alivePods[fk] = lp
-}
-
-// initSnapshot prepares this instance for a new round of start calls followed by a cancelUnwanted.
-func (lpf *podIntercepts) initSnapshot() {
-	lpf.snapshot = make(map[podInterceptKey]struct{})
-	lpf.mountsDone = make(map[podInterceptKey]chan struct{})
-}
-
-func (lpf *podIntercepts) getOrCreateMountsDone(ic *intercept) <-chan struct{} {
-	fk := podInterceptKey{Id: ic.Id, PodIP: ic.PodIp}
-	md, ok := lpf.mountsDone[fk]
-	if !ok {
-		md = make(chan struct{})
-		lpf.mountsDone[fk] = md
-	}
-	return md
-}
-
-// cancelUnwanted cancels all port forwards that hasn't been started since initSnapshot.
-func (lpf *podIntercepts) cancelUnwanted(ctx context.Context) {
-	for fk, lp := range lpf.alivePods {
-		if _, isWanted := lpf.snapshot[fk]; !isWanted {
-			dlog.Infof(ctx, "Terminating mounts and port-forwards for %+v", fk)
-			lp.cancelPod()
-			delete(lpf.alivePods, fk)
-			md, ok := lpf.mountsDone[fk]
-			if ok {
-				delete(lpf.mountsDone, fk)
-				close(md)
-			}
-			lp.wg.Wait()
-		}
-	}
+	return pa
 }
 
 func (s *session) watchInterceptsHandler(ctx context.Context) error {
@@ -295,26 +133,26 @@ func (s *session) watchInterceptsLoop(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("manager.WatchIntercepts dial: %w", err)
 	}
-	podIcepts := newPodIntercepts()
+	pat := newPodAccessTracker()
 	for ctx.Err() == nil {
 		snapshot, err := stream.Recv()
 		if err != nil {
 			// Handle as if we had an empty snapshot. This will ensure that port forwards and volume mounts are cancelled correctly.
-			s.handleInterceptSnapshot(ctx, podIcepts, nil)
+			s.handleInterceptSnapshot(ctx, pat, nil)
 			if ctx.Err() != nil || errors.Is(err, io.EOF) {
 				// Normal termination
 				return nil
 			}
 			return fmt.Errorf("manager.WatchIntercepts recv: %w", err)
 		}
-		s.handleInterceptSnapshot(ctx, podIcepts, snapshot.Intercepts)
+		s.handleInterceptSnapshot(ctx, pat, snapshot.Intercepts)
 	}
 	return nil
 }
 
-func (s *session) handleInterceptSnapshot(ctx context.Context, podIcepts *podIntercepts, intercepts []*manager.InterceptInfo) {
+func (s *session) handleInterceptSnapshot(ctx context.Context, pat *podAccessTracker, intercepts []*manager.InterceptInfo) {
 	s.setCurrentIntercepts(ctx, intercepts)
-	podIcepts.initSnapshot()
+	pat.initSnapshot()
 
 	for _, ii := range intercepts {
 		if ii.Disposition == manager.InterceptDispositionType_WAITING {
@@ -340,12 +178,13 @@ func (s *session) handleInterceptSnapshot(ctx context.Context, podIcepts *podInt
 		}
 
 		// Notify waiters for active intercepts
+		pa := ic.podAccess(s.rootDaemon)
 		if aw != nil {
 			dlog.Debugf(ctx, "wait status: intercept id=%q is no longer WAITING; is now %v", ii.Id, ii.Disposition)
 			ir := interceptResult{
 				intercept:  ic,
 				err:        err,
-				mountsDone: podIcepts.getOrCreateMountsDone(ic),
+				mountsDone: pat.getOrCreateMountsDone(pa),
 			}
 			select {
 			case aw.waitCh <- ir:
@@ -365,12 +204,12 @@ func (s *session) handleInterceptSnapshot(ctx context.Context, podIcepts *podInt
 
 		if s.isPodDaemon {
 			// disable mount point logic
-			ic.FtpPort = 0
-			ic.SftpPort = 0
+			pa.ftpPort = 0
+			pa.sftpPort = 0
 		}
-		podIcepts.start(ctx, ic, s.rootDaemon)
+		pat.start(ctx, pa)
 	}
-	podIcepts.cancelUnwanted(ctx)
+	pat.cancelUnwanted(ctx)
 }
 
 // getCurrentIntercepts returns a copy of the current intercept snapshot. This snapshot does

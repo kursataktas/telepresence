@@ -13,11 +13,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-json-experiment/json"
 	"github.com/google/uuid"
+	"github.com/puzpuzpuz/xsync/v3"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -84,6 +86,11 @@ type workloadInfo struct {
 	interceptClients []string
 }
 
+type ingestKey struct {
+	workload  string
+	container string
+}
+
 type session struct {
 	*k8s.Cluster
 	rootDaemon         rootdRpc.DaemonClient
@@ -116,6 +123,13 @@ type session struct {
 	workloads map[string]map[workloadInfoKey]workloadInfo
 
 	workloadSubscribers map[uuid.UUID]chan struct{}
+
+	// currentIngests is tracks the ingests that are active in this session.
+	currentIngests *xsync.MapOf[ingestKey, *ingest]
+
+	ingestLoopRunning atomic.Bool
+
+	ingestTracker *podAccessTracker
 
 	// currentInterceptsLock ensures that all accesses to currentIntercepts, currentMatchers,
 	// currentAPIServers, interceptWaiters, and ingressInfo are synchronized
@@ -444,6 +458,7 @@ func connectMgr(
 		managerName:        managerName,
 		managerVersion:     managerVersion,
 		sessionInfo:        si,
+		currentIngests:     xsync.NewMapOf[ingestKey, *ingest](),
 		workloads:          make(map[string]map[workloadInfoKey]workloadInfo),
 		interceptWaiters:   make(map[string]*awaitIntercept),
 		isPodDaemon:        cr.IsPodDaemon,

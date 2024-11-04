@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/datawire/dlib/dgroup"
 	"github.com/datawire/dlib/dlog"
-	"github.com/telepresenceio/telepresence/v2/pkg/client"
 	"github.com/telepresenceio/telepresence/v2/pkg/dpipe"
 	"github.com/telepresenceio/telepresence/v2/pkg/iputil"
 	"github.com/telepresenceio/telepresence/v2/pkg/proc"
@@ -46,7 +47,8 @@ func (m *sftpMounter) Start(ctx context.Context, id, clientMountPoint, mountPoin
 		defer dlog.Infof(ctx, "Unmounting SFTP file system for intercept %q (pod %s) at %q", id, podIP, clientMountPoint)
 
 		// Retry mount in case it gets disconnected
-		err := client.Retry(ctx, "sshfs", func(ctx context.Context) error {
+		bc := backoff.WithContext(backoff.NewConstantBackOff(3*time.Second), ctx)
+		err := backoff.Retry(func() error {
 			sshfsArgs := []string{
 				"-F", "none", // don't load the user's config file
 				"-f", // foreground operation
@@ -101,7 +103,7 @@ func (m *sftpMounter) Start(ctx context.Context, id, clientMountPoint, mountPoin
 			umount.DisableLogging = true
 			_ = umount.Run()
 			return err
-		}, 3*time.Second, 6*time.Second)
+		}, bc)
 		if err != nil {
 			dlog.Error(ctx, err)
 		}

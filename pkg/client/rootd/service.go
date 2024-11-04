@@ -269,15 +269,12 @@ func (s *Service) GetNetworkConfig(ctx context.Context, e *emptypb.Empty) (nc *r
 	return
 }
 
-func (s *Service) WaitForAgentIP(ctx context.Context, request *rpc.WaitForAgentIPRequest) (*emptypb.Empty, error) {
-	err := s.WithSession(func(ctx context.Context, session *Session) error {
-		_, err := session.waitForAgentIP(ctx, request)
+func (s *Service) WaitForAgentIP(ctx context.Context, request *rpc.WaitForAgentIPRequest) (rsp *rpc.WaitForAgentIPResponse, err error) {
+	err = s.WithSession(func(ctx context.Context, session *Session) error {
+		rsp, err = session.waitForAgentIP(ctx, request)
 		return err
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &emptypb.Empty{}, nil
+	return rsp, err
 }
 
 func (s *Service) SetLogLevel(ctx context.Context, request *manager.LogLevelRequest) (*emptypb.Empty, error) {
@@ -462,7 +459,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	c = dgroup.WithGoroutineName(c, "/"+ProcessName)
-	c, err = logging.InitContext(c, ProcessName, logging.RotateDaily, true)
+	c, err = logging.InitContext(c, ProcessName, logging.RotateDaily, true, false)
 	if err != nil {
 		return err
 	}

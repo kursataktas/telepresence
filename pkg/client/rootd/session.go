@@ -1013,24 +1013,13 @@ func (s *Session) run(c context.Context, initErrs chan error) error {
 }
 
 func (s *Session) Start(c context.Context, g *dgroup.Group) error {
-	cancelDNSLock := sync.Mutex{}
-	cancelDNS := func() {}
-
-	if !s.podDaemon {
-		g.Go("network", func(ctx context.Context) error {
-			defer func() {
-				cancelDNSLock.Lock()
-				cancelDNS()
-				cancelDNSLock.Unlock()
-			}()
-			return s.watchClusterInfo(ctx)
-		})
-	}
-
 	if rmc, ok := s.managerClient.(interface{ RealManagerClient() manager.ManagerClient }); ok {
+		dlog.Debug(c, "ProxyVIA RealManagerClient")
 		clusterCfg := client.GetConfig(c).Cluster()
 		if clusterCfg.AgentPortForward && clusterCfg.ConnectFromRootDaemon {
+			dlog.Debug(c, "ProxyVIA agentPortForward && connectFromRootDaemon")
 			if k8sclient.CanPortForward(c, s.namespace) {
+				dlog.Debugf(c, "can portForward to %s", s.namespace)
 				s.agentClients = agentpf.NewClients(s.session)
 				g.Go("agentPods", func(ctx context.Context) error {
 					if err := s.activateProxyViaWorkloads(c); err != nil {
@@ -1046,6 +1035,18 @@ func (s *Session) Start(c context.Context, g *dgroup.Group) error {
 	if s.podDaemon {
 		return nil
 	}
+
+	cancelDNSLock := sync.Mutex{}
+	cancelDNS := func() {}
+
+	g.Go("network", func(ctx context.Context) error {
+		defer func() {
+			cancelDNSLock.Lock()
+			cancelDNS()
+			cancelDNSLock.Unlock()
+		}()
+		return s.watchClusterInfo(ctx)
+	})
 
 	if s.agentClients == nil && len(s.subnetViaWorkloads) > 0 {
 		return fmt.Errorf("--proxy-via can only be used when cluster.agentPortForward is enabled")
@@ -1132,6 +1133,8 @@ func (s *Session) activateProxyViaWorkloads(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("unable to parse configuration value cluster.virtualIPSubnet: %w", err)
 	}
+	dlog.Debugf(ctx, "ProxyVIA using subnet %s", vipSubnet)
+
 	s.vipGenerator = vip.NewGenerator(vipSubnet)
 	s.localTranslationTable = xsync.NewMapOf[netip.Addr, netip.Addr]()
 	s.virtualIPs = xsync.NewMapOf[netip.Addr, agentVIP]()
@@ -1236,7 +1239,7 @@ func (s *Session) SetMappings(ctx context.Context, mappings []*rpc.DNSMapping) {
 	s.dnsServer.SetMappings(mappings)
 }
 
-func (s *Session) waitForAgentIP(ctx context.Context, request *rpc.WaitForAgentIPRequest) (*empty.Empty, error) {
+func (s *Session) waitForAgentIP(ctx context.Context, request *rpc.WaitForAgentIPRequest) (*rpc.WaitForAgentIPResponse, error) {
 	if s.agentClients == nil {
 		return nil, status.Error(codes.Unavailable, "")
 	}
@@ -1254,7 +1257,13 @@ func (s *Session) waitForAgentIP(ctx context.Context, request *rpc.WaitForAgentI
 	default:
 		err = status.Error(codes.Internal, err.Error())
 	}
-	return &empty.Empty{}, err
+	if err == nil {
+		ip, err = s.maybeGetVirtualIP(ctx, ip)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &rpc.WaitForAgentIPResponse{LocalIp: ip.AsSlice()}, nil
 }
 
 func (s *Session) Done() <-chan struct{} {

@@ -23,7 +23,7 @@ import (
 var loggerForTest *logrus.Logger //nolint:gochecknoglobals // used by unit tests only
 
 // InitContext sets up standard Telepresence logging for a background process.
-func InitContext(ctx context.Context, name string, strategy RotationStrategy, captureStd bool) (context.Context, error) {
+func InitContext(ctx context.Context, name string, strategy RotationStrategy, captureStd, forceTerminal bool) (context.Context, error) {
 	logger := logrus.StandardLogger()
 	loggerForTest = logger
 
@@ -31,7 +31,7 @@ func InitContext(ctx context.Context, name string, strategy RotationStrategy, ca
 	logger.SetLevel(logrus.InfoLevel)
 	logger.ReportCaller = false // turned on when level >= logrus.TraceLevel
 
-	if captureStd && IsTerminal(int(os.Stdout.Fd())) {
+	if forceTerminal || captureStd && IsTerminal(int(os.Stdout.Fd())) {
 		logger.Formatter = tlog.NewFormatter("15:04:05.0000")
 	} else {
 		logger.Formatter = tlog.NewFormatter("2006-01-02 15:04:05.0000")

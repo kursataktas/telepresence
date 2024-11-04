@@ -28,7 +28,7 @@ func Telepresence(ctx context.Context) *cobra.Command {
 		os.Exit(1)
 	}
 	ctx = client.WithConfig(ctx, cfg)
-	if ctx, err = logging.InitContext(ctx, "cli", logging.RotateDaily, false); err != nil {
+	if ctx, err = logging.InitContext(ctx, "cli", logging.RotateDaily, false, false); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}

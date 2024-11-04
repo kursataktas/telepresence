@@ -37,7 +37,7 @@ func IsDaemon() bool {
 	return len(a) > 1 && strings.HasSuffix(a[1], fg) || len(a) > 2 && strings.HasSuffix(a[2], fg) && a[1] == "help"
 }
 
-func ProcessName() string {
+var ProcessName = func() string {
 	const fg = "-foreground"
 	a := os.Args
 	var pn string

@@ -219,6 +219,12 @@ func (s *service) configReload(c context.Context) error {
 // a session and writes a reply to the connectErrCh. The session is then started if it was
 // successfully created.
 func (s *service) ManageSessions(c context.Context) error {
+	c, cancel := context.WithCancel(c)
+	s.quit = func() {
+		if !s.quitDisable {
+			cancel()
+		}
+	}
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
@@ -407,7 +413,7 @@ func run(cmd *cobra.Command, _ []string) error {
 		name = name[:di]
 	}
 	c = dgroup.WithGoroutineName(c, "/"+name)
-	c, err = logging.InitContext(c, userd.ProcessName, logging.RotateDaily, true)
+	c, err = logging.InitContext(c, userd.ProcessName, logging.RotateDaily, true, false)
 	if err != nil {
 		return err
 	}
@@ -513,12 +519,6 @@ func run(cmd *cobra.Command, _ []string) error {
 
 	g.Go("config-reload", s.configReload)
 	g.Go(sessionName, func(c context.Context) error {
-		c, cancel := context.WithCancel(c)
-		s.quit = func() {
-			if !s.quitDisable {
-				cancel()
-			}
-		}
 		return s.ManageSessions(c)
 	})
 

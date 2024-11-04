@@ -122,7 +122,7 @@ type ManagerClient interface {
 	// connectivity to the cluster.
 	WatchClusterInfo(ctx context.Context, in *SessionInfo, opts ...grpc.CallOption) (Manager_WatchClusterInfoClient, error)
 	// EnsureAgent ensures that an agent is injected to the pods of a workload
-	EnsureAgent(ctx context.Context, in *EnsureAgentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EnsureAgent(ctx context.Context, in *EnsureAgentRequest, opts ...grpc.CallOption) (*AgentInfo, error)
 	// Request that the traffic-manager makes the preparations necessary to
 	// create the given intercept.
 	PrepareIntercept(ctx context.Context, in *CreateInterceptRequest, opts ...grpc.CallOption) (*PreparedIntercept, error)
@@ -511,9 +511,9 @@ func (x *managerWatchClusterInfoClient) Recv() (*ClusterInfo, error) {
 	return m, nil
 }
 
-func (c *managerClient) EnsureAgent(ctx context.Context, in *EnsureAgentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *managerClient) EnsureAgent(ctx context.Context, in *EnsureAgentRequest, opts ...grpc.CallOption) (*AgentInfo, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(AgentInfo)
 	err := c.cc.Invoke(ctx, Manager_EnsureAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -814,7 +814,7 @@ type ManagerServer interface {
 	// connectivity to the cluster.
 	WatchClusterInfo(*SessionInfo, Manager_WatchClusterInfoServer) error
 	// EnsureAgent ensures that an agent is injected to the pods of a workload
-	EnsureAgent(context.Context, *EnsureAgentRequest) (*emptypb.Empty, error)
+	EnsureAgent(context.Context, *EnsureAgentRequest) (*AgentInfo, error)
 	// Request that the traffic-manager makes the preparations necessary to
 	// create the given intercept.
 	PrepareIntercept(context.Context, *CreateInterceptRequest) (*PreparedIntercept, error)
@@ -929,7 +929,7 @@ func (UnimplementedManagerServer) WatchWorkloads(*WorkloadEventsRequest, Manager
 func (UnimplementedManagerServer) WatchClusterInfo(*SessionInfo, Manager_WatchClusterInfoServer) error {
 	return status.Errorf(codes.Unimplemented, "method WatchClusterInfo not implemented")
 }
-func (UnimplementedManagerServer) EnsureAgent(context.Context, *EnsureAgentRequest) (*emptypb.Empty, error) {
+func (UnimplementedManagerServer) EnsureAgent(context.Context, *EnsureAgentRequest) (*AgentInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnsureAgent not implemented")
 }
 func (UnimplementedManagerServer) PrepareIntercept(context.Context, *CreateInterceptRequest) (*PreparedIntercept, error) {

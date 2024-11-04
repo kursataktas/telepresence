@@ -49,6 +49,12 @@ service Connector {
   // Queries the connector whether it is possible to create the given intercept.
   rpc CanIntercept(CreateInterceptRequest) returns (InterceptResult);
 
+  // Starts an Ingest session.
+  rpc Ingest(IngestRequest) returns (IngestResponse);
+
+  // Ends an Ingest session.
+  rpc LeaveIngest(IngestIdentifier) returns (google.protobuf.Empty);
+
   // Adds an intercept to a workload.  Requires having already called
   // Connect.
   rpc CreateIntercept(CreateInterceptRequest) returns (InterceptResult);
@@ -123,7 +129,7 @@ service ManagerProxy {
   rpc GetClientConfig(google.protobuf.Empty) returns (manager.CLIConfig);
 
   // EnsureAgent ensures that an agent is injected to the pods of a workload
-  rpc EnsureAgent(manager.EnsureAgentRequest) returns (google.protobuf.Empty);
+  rpc EnsureAgent(manager.EnsureAgentRequest) returns (manager.AgentInfo);
 
   // WatchClusterInfo returns information needed when establishing
   // connectivity to the cluster.
@@ -279,6 +285,50 @@ message ListRequest {
 
   // Namespace to list.
   string namespace = 2;
+}
+
+message IngestIdentifier {
+  // Name of the workload that holds the desire container.
+  string workload_name = 1;
+
+  // The name of the desired container. Must be set when the workload contains more
+  // than one container candidate.
+  string container_name = 2;
+}
+
+message IngestRequest {
+  IngestIdentifier identifier = 1;
+
+  // Desired mount point. Can be set to "true" to generated temporary mount point,
+  // "false" to prevent that mounting takes place, an explicit path to use for the
+  // mount or an empty string in combination with a non-zero local_mount_port.
+  string mount_point = 2;
+
+  // Local port where an sftp client can connect when doing docker volume mounts.
+  int32 local_mount_port = 3;
+
+  // Extra ports that will be forwarded from the intercepting client's localhost
+  // to the intercepted pod. Each entry is a string containing a port number followed
+  // by an optional "/TCP" or "/UDP".
+  repeated string local_ports = 4;
+}
+
+message IngestResponse {
+  // The IP of the chosen pod.
+  string pod_ip = 10;
+
+  // Port where the SFTP server is listening.
+  int32 sftp_port = 11;
+
+  // Port where the FTP server is listening.
+  int32 ftp_port = 18;
+
+  // The directory where the client mounts the remote mount_point. Only
+  // set when obtaining InterceptInfo from the user daemon.
+  string client_mount_point = 2;
+
+  // The environment of the target container.
+  map<string,string> environment = 1;
 }
 
 message WatchWorkloadsRequest {

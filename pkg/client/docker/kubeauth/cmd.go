@@ -73,7 +73,7 @@ func (as *authService) run(cmd *cobra.Command, _ []string) error {
 		return errcat.NoDaemonLogs.Newf("unable to open a port on localhost: %w", err)
 	}
 
-	ctx, err = logging.InitContext(ctx, "kubeauth", logging.RotateNever, false)
+	ctx, err = logging.InitContext(ctx, "kubeauth", logging.RotateNever, false, false)
 	if err != nil {
 		return err
 	}

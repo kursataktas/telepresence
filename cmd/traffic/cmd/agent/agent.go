@@ -103,6 +103,7 @@ func sftpServer(ctx context.Context, sftpPortCh chan<- uint16) error {
 	}
 	sftpPortCh <- sftpPort
 
+	dlog.Infof(ctx, "Listening at: %s", l.Addr())
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -158,14 +159,10 @@ func sidecar(ctx context.Context, s State, info *rpc.AgentInfo) error {
 	// Manage the forwarders
 	ac := s.AgentConfig()
 	for _, cn := range ac.Containers {
-		env, err := AppEnvironment(ctx, cn)
-		if err != nil {
-			return err
-		}
-		cnMountPoint := filepath.Join(agentconfig.ExportsMountPoint, filepath.Base(cn.MountPoint))
-		s.AddContainerState(cn.Name, NewContainerState(cnMountPoint, env))
+		ci := info.Containers[cn.Name]
+		s.AddContainerState(cn.Name, NewContainerState(ci.MountPoint, ci.Environment))
 
-		// Group the containers intercepts by agent port
+		// Group the container's intercepts by agent port
 		icStates := make(map[agentconfig.PortAndProto][]*agentconfig.Intercept, len(cn.Intercepts))
 		for _, ic := range cn.Intercepts {
 			k := agentconfig.PortAndProto{Port: ic.AgentPort, Proto: ic.Protocol}
@@ -310,12 +307,25 @@ func StartServices(ctx context.Context, g *dgroup.Group, config Config, srv Stat
 		})
 	}
 
+	containers := make(map[string]*rpc.AgentInfo_ContainerInfo, len(ac.Containers))
+	for _, cn := range ac.Containers {
+		env, err := AppEnvironment(ctx, cn)
+		if err != nil {
+			return nil, err
+		}
+		containers[cn.Name] = &rpc.AgentInfo_ContainerInfo{
+			Environment: env,
+			MountPoint:  filepath.Join(agentconfig.ExportsMountPoint, filepath.Base(cn.MountPoint)),
+		}
+	}
 	return &rpc.AgentInfo{
 		Name:      config.AgentConfig().AgentName,
 		Namespace: config.AgentConfig().Namespace,
 		PodName:   config.PodName(),
 		PodIp:     config.PodIP(),
 		ApiPort:   int32(grpcPort),
+		FtpPort:   int32(ftpPort),
+		SftpPort:  int32(sftpPort),
 		Product:   "telepresence",
 		Version:   version.Version,
 		Mechanisms: []*rpc.AgentInfo_Mechanism{
@@ -325,6 +335,7 @@ func StartServices(ctx context.Context, g *dgroup.Group, config Config, srv Stat
 				Version: version.Version,
 			},
 		},
+		Containers: containers,
 	}, nil
 }
 

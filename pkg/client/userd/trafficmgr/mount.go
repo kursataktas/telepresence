@@ -12,55 +12,55 @@ import (
 	"github.com/telepresenceio/telepresence/v2/pkg/iputil"
 )
 
-func (ic *intercept) shouldMount() bool {
-	return (ic.FtpPort > 0 || ic.SftpPort > 0) && (ic.localMountPort > 0 || ic.ClientMountPoint != "")
+func (pa *podAccess) shouldMount() bool {
+	return (pa.ftpPort > 0 || pa.sftpPort > 0) && (pa.localMountPort > 0 || pa.clientMountPoint != "")
 }
 
-// startMount starts the mount for the given podInterceptKey.
+// startMount starts the mount for the given podAccessKey.
 // It assumes that the user has called shouldMount and is sure that something will be started.
-func (ic *intercept) startMount(ctx context.Context, iceptWG, podWG *sync.WaitGroup) {
+func (pa *podAccess) startMount(ctx context.Context, iceptWG, podWG *sync.WaitGroup) {
 	var fuseftp rpc.FuseFTPClient
 	useFtp := client.GetConfig(ctx).Intercept().UseFtp
 	var port int32
 	mountCtx := ctx
 	if useFtp {
-		if ic.FtpPort == 0 {
+		if pa.ftpPort == 0 {
 			dlog.Errorf(ctx, "Client is configured to perform remote mounts using FTP, but only SFTP is provided by the traffic-agent")
 			return
 		}
-		if ic.localMountPort > 0 {
+		if pa.localMountPort > 0 {
 			dlog.Errorf(ctx, "Client is configured to perform remote mounts using FTP, but only SFTP can be used with --local-mount-port")
 			return
 		}
 		// The FTP mounter survives multiple starts for the same intercept. It just resets the address
-		mountCtx = ic.ctx
+		mountCtx = pa.ctx
 		if fuseftp = userd.GetService(ctx).FuseFTPMgr().GetFuseFTPClient(ctx); fuseftp == nil {
 			dlog.Errorf(ctx, "Client is configured to perform remote mounts using FTP, but the fuseftp server was unable to start")
 			return
 		}
-		port = ic.FtpPort
+		port = pa.ftpPort
 	} else {
-		if ic.SftpPort == 0 {
+		if pa.sftpPort == 0 {
 			dlog.Errorf(ctx, "Client is configured to perform remote mounts using SFTP, but only FTP is provided by the traffic-agent")
 			return
 		}
-		port = ic.SftpPort
+		port = pa.sftpPort
 	}
 
-	m := ic.Mounter
+	m := pa.Mounter
 	if m == nil {
 		switch {
-		case ic.localMountPort != 0:
+		case pa.localMountPort != 0:
 			session := userd.GetSession(ctx)
-			m = remotefs.NewBridgeMounter(session.SessionInfo().SessionId, session.ManagerClient(), uint16(ic.localMountPort))
+			m = remotefs.NewBridgeMounter(session.SessionInfo().SessionId, session.ManagerClient(), uint16(pa.localMountPort))
 		case useFtp:
 			m = remotefs.NewFTPMounter(fuseftp, iceptWG)
 		default:
 			m = remotefs.NewSFTPMounter(iceptWG, podWG)
 		}
-		ic.Mounter = m
+		pa.Mounter = m
 	}
-	err := m.Start(mountCtx, ic.Id, ic.ClientMountPoint, ic.MountPoint, iputil.Parse(ic.PodIp), uint16(port))
+	err := m.Start(mountCtx, pa.container, pa.clientMountPoint, pa.mountPoint, iputil.Parse(pa.podIP), uint16(port))
 	if err != nil && ctx.Err() == nil {
 		dlog.Error(ctx, err)
 	}

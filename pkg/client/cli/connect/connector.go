@@ -335,7 +335,7 @@ func EnsureUserDaemon(ctx context.Context, required bool) (rc context.Context, e
 	defer func() {
 		if err == nil && required && !daemon.GetUserClient(rc).Containerized() {
 			// The RootDaemon must be started if the UserDaemon was started
-			err = ensureRootDaemonRunning(ctx)
+			err = EnsureRootDaemonRunning(ctx)
 		}
 	}()
 
